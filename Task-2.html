@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Meditation & Mood Tracker</title>
+<style>
+  body{font-family:sans-serif;background:#222;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
+  .box{background:#333;padding:20px;border-radius:10px;width:320px}
+  button{padding:6px 10px;margin:4px;border:none;border-radius:6px;cursor:pointer}
+  .mood button{background:#444;color:#fff}
+  .mood .sel{background:#ffa500}
+  .ctrl button{width:70px}
+  #log{font-size:.8rem;margin-top:10px;max-height:100px;overflow:auto;border-top:1px solid #555;padding-top:6px}
+</style>
+</head>
+<body>
+<div class="box">
+  <h3>Meditation & Mood</h3>
+
+  <div class="mood">
+    <button data-m="Calm">Calm</button>
+    <button data-m="Happy">Happy</button>
+    <button data-m="Stress">Stress</button>
+  </div>
+
+  <p>Minutes: <input id="mins" type="number" value="3" min="1" max="60" style="width:60px"></p>
+
+  <div class="ctrl">
+    <button id="start">Start</button>
+    <button id="pause">Pause</button>
+    <button id="stop">Stop</button>
+    <button id="reset">Reset</button>
+  </div>
+
+  <h2 id="timer">00:00 / 03:00</h2>
+  <p id="prompt">Press Start to begin.</p>
+
+  <div id="log"></div>
+</div>
+
+<script>
+let mood=null,sec=0,total=180,run=null,paused=false;
+const moods=document.querySelectorAll(".mood button");
+const timer=document.getElementById("timer");
+const prompt=document.getElementById("prompt");
+const log=document.getElementById("log");
+
+const prompts=["Inhale…","Hold…","Exhale…","Relax…"];
+let pi=0;
+
+moods.forEach(b=>b.onclick=()=>{
+  moods.forEach(x=>x.classList.remove("sel"));
+  b.classList.add("sel");
+  mood=b.dataset.m;
+});
+
+function fmt(s){return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")}
+
+function update(){
+  timer.textContent=`${fmt(sec)} / ${fmt(total)}`;
+}
+
+document.getElementById("start").onclick=()=>{
+  if(!mood){prompt.textContent="Select mood first.";return}
+  total=(+document.getElementById("mins").value)*60;
+  if(sec>=total)sec=0;
+  paused=false;
+  clearInterval(run);
+  run=setInterval(()=>{
+    if(paused)return;
+    sec++; update();
+    prompt.textContent=prompts[pi++%prompts.length];
+    if(sec>=total){
+      clearInterval(run);
+      prompt.textContent="Session complete.";
+      log.innerHTML=`<div>[${new Date().toLocaleTimeString()}] Mood: ${mood}, Time: ${fmt(sec)}</div>`+log.innerHTML;
+    }
+  },1000);
+  update();
+};
+
+document.getElementById("pause").onclick=()=>{
+  paused=!paused;
+  prompt.textContent=paused?"Paused.":"Resumed.";
+};
+
+document.getElementById("stop").onclick=()=>{
+  clearInterval(run);
+  prompt.textContent="Stopped early.";
+  log.innerHTML=`<div>[${new Date().toLocaleTimeString()}] Mood: ${mood}, Time: ${fmt(sec)}</div>`+log.innerHTML;
+};
+
+document.getElementById("reset").onclick=()=>{
+  clearInterval(run);
+  sec=0; paused=false;
+  prompt.textContent="Press Start to begin.";
+  update();
+};
+
+update();
+</script>
+</body>
+</html>
