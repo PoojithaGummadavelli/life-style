@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Recipe Builder</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        padding: 20px;
+    }
+    .container {
+        max-width: 800px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+        text-align: center;
+    }
+    input, button {
+        padding: 10px;
+        margin: 5px 0;
+        width: 100%;
+        font-size: 16px;
+    }
+    button {
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+    }
+    .btn-add { background: #28a745; color: white; }
+    .btn-remove { background: #dc3545; color: white; }
+    .btn-new { background: #007bff; color: white; }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 10px;
+    }
+    .suggestions span {
+        background: #eee;
+        padding: 5px 8px;
+        margin: 3px;
+        border-radius: 5px;
+        display: inline-block;
+        cursor: pointer;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Recipe Builder</h1>
+
+    <label>Recipe Name:</label>
+    <input type="text" id="recipeName" placeholder="e.g. Veg Sandwich">
+
+    <label>Ingredient Name:</label>
+    <input type="text" id="ingredientName" oninput="showSuggestions()" placeholder="e.g. Tomato">
+
+    <div class="suggestions" id="suggestions"></div>
+
+    <label>Quantity:</label>
+    <input type="text" id="ingredientQty" placeholder="e.g. 50g">
+
+    <label>Calories:</label>
+    <input type="number" id="ingredientCal" placeholder="e.g. 20">
+
+    <button class="btn-add" onclick="addIngredient()">Add Ingredient</button>
+
+    <table id="ingredientTable">
+        <thead>
+            <tr>
+                <th>Ingredient</th>
+                <th>Quantity</th>
+                <th>Calories</th>
+                <th>Remove</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h3 id="totalCalories">Total Calories: 0</h3>
+
+    <button class="btn-new" onclick="newRecipe()">Create New Recipe</button>
+</div>
+
+<script>
+const ingredientDB = [
+    { name: "Tomato", calories: 18 },
+    { name: "Onion", calories: 40 },
+    { name: "Bread Slice", calories: 80 },
+    { name: "Cheese Slice", calories: 113 },
+    { name: "Butter (1 tbsp)", calories: 102 },
+    { name: "Egg", calories: 72 },
+    { name: "Potato", calories: 77 },
+    { name: "Milk (100ml)", calories: 42 }
+];
+
+let ingredients = [];
+
+function showSuggestions() {
+    const input = document.getElementById("ingredientName").value.toLowerCase();
+    const suggestionBox = document.getElementById("suggestions");
+    suggestionBox.innerHTML = "";
+
+    if (!input) return;
+
+    const matches = ingredientDB.filter(item =>
+        item.name.toLowerCase().includes(input)
+    );
+
+    matches.forEach(item => {
+        const span = document.createElement("span");
+        span.textContent = `${item.name} (${item.calories} cal)`;
+        span.onclick = () => {
+            document.getElementById("ingredientName").value = item.name;
+            document.getElementById("ingredientCal").value = item.calories;
+            suggestionBox.innerHTML = "";
+        };
+        suggestionBox.appendChild(span);
+    });
+}
+
+function addIngredient() {
+    const name = document.getElementById("ingredientName").value;
+    const qty = document.getElementById("ingredientQty").value;
+    const cal = parseInt(document.getElementById("ingredientCal").value);
+
+    if (!name || !qty || isNaN(cal)) {
+        alert("Please fill all fields");
+        return;
+    }
+
+    ingredients.push({ name, qty, cal });
+    updateTable();
+    updateCalories();
+
+    document.getElementById("ingredientName").value = "";
+    document.getElementById("ingredientQty").value = "";
+    document.getElementById("ingredientCal").value = "";
+}
+
+function updateTable() {
+    const tbody = document.querySelector("#ingredientTable tbody");
+    tbody.innerHTML = "";
+
+    ingredients.forEach((item, index) => {
+        const row = `
+            <tr>
+                <td>${item.name}</td>
+                <td>${item.qty}</td>
+                <td>${item.cal}</td>
+                <td><button class="btn-remove" onclick="removeIngredient(${index})">X</button></td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function removeIngredient(index) {
+    ingredients.splice(index, 1);
+    updateTable();
+    updateCalories();
+}
+
+function updateCalories() {
+    const total = ingredients.reduce((sum, item) => sum + item.cal, 0);
+    document.getElementById("totalCalories").textContent = "Total Calories: " + total;
+}
+
+function newRecipe() {
+    if (!confirm("Start a new recipe?")) return;
+
+    ingredients = [];
+    updateTable();
+    updateCalories();
+    document.getElementById("recipeName").value = "";
+}
+</script>
+
+</body>
+</html>
