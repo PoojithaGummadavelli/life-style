@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Student Management System (Demo)</title>
+  <!-- CDN libraries for PDF & Excel export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{--accent:#4f46e5;--muted:#6b7280;--bg:#f8fafc}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial; margin:0; background:var(--bg); color:#0f172a}
+    .container{max-width:1100px;margin:28px auto;padding:20px}
+    header{display:flex;align-items:center;justify-content:space-between}
+    h1{margin:0;font-size:20px}
+    .card{background:white;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(15,23,42,0.06);margin-top:16px}
+
+    /* Layout */
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    input[type=text],select,input[type=number]{padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px}
+    button{cursor:pointer;border:0;padding:10px 12px;border-radius:10px;background:var(--accent);color:white;font-weight:600}
+    button.ghost{background:transparent;color:var(--accent);border:1px solid rgba(79,70,229,0.12)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:10px;text-align:left;border-bottom:1px solid #eef2f7;font-size:14px}
+    th{font-weight:700;color:var(--muted);font-size:13px}
+    .actions button{margin-right:6px}
+    .muted{color:var(--muted);font-size:13px}
+
+    /* modal form */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:flex;align-items:center;justify-content:center}
+    .modal{width:480px;background:white;border-radius:12px;padding:18px}
+    .row{display:flex;gap:10px}
+    .row>div{flex:1}
+
+    /* small */
+    @media (max-width:900px){.grid{grid-template-columns:1fr} .card{padding:12px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Student Management System — Demo</h1>
+      <div class="muted">Role: <span id="currentRole">(not logged in)</span></div>
+    </header>
+
+    <!-- Login / Role select -->
+    <div class="card" id="loginCard">
+      <strong>Sign in (demo)</strong>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+        <label for="roleSelect" class="muted">Choose role</label>
+        <select id="roleSelect">
+          <option value="admin">Admin</option>
+          <option value="teacher">Teacher</option>
+          <option value="student">Student</option>
+        </select>
+        <input id="usernameInput" placeholder="username (demo)" type="text" />
+        <button id="loginBtn">Sign in</button>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:13px">Admin/Teacher can add/edit/delete. Student can only view.</div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <!-- Main card: students -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <strong>Students</strong>
+              <div class="muted">Manage student records — stored in browser (localStorage)</div>
+            </div>
+            <div class="controls" id="topControls">
+              <input id="searchInput" type="text" placeholder="Search by name" />
+              <select id="classFilter">
+                <option value="">All classes</option>
+                <option value="1">Class 1</option>
+                <option value="2">Class 2</option>
+                <option value="3">Class 3</option>
+                <option value="4">Class 4</option>
+                <option value="5">Class 5</option>
+              </select>
+              <button id="addBtn" class="ghost">+ Add</button>
+            </div>
+          </div>
+
+          <table id="studentsTable">
+            <thead>
+              <tr><th>#</th><th>Name</th><th>Class</th><th>Age</th><th>Phone</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <div class="muted">Showing <span id="count">0</span> records</div>
+            <div style="display:flex;gap:8px">
+              <button id="exportPdf">Export PDF</button>
+              <button id="exportExcel" class="ghost">Export Excel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Report sample / preview -->
+        <div class="card" style="margin-top:12px">
+          <strong>Quick reports</strong>
+          <div class="muted" style="margin-top:8px">Use export buttons to generate PDF or Excel containing current filtered results.</div>
+        </div>
+      </div>
+
+      <!-- Side panel -->
+      <div>
+        <div class="card">
+          <strong>Selected student</strong>
+          <div id="selectedCard" style="margin-top:10px">No student selected</div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <strong>Demo data</strong>
+          <div class="muted" style="margin-top:8px">Click to load sample students into localStorage</div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button id="loadSample">Load sample</button>
+            <button id="clearAll" class="ghost">Clear all</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- modal (hidden) -->
+  <div id="modalBackdrop" style="display:none" class="modal-backdrop">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong id="modalTitle">Add student</strong>
+        <button id="closeModal" class="ghost">Close</button>
+      </div>
+      <div style="margin-top:12px">
+        <div class="row">
+          <div>
+            <label class="muted">Name</label>
+            <input id="sName" type="text" />
+          </div>
+          <div>
+            <label class="muted">Phone</label>
+            <input id="sPhone" type="text" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label class="muted">Class</label>
+            <select id="sClass"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
+          </div>
+          <div>
+            <label class="muted">Age</label>
+            <input id="sAge" type="number" min="4" max="25" />
+          </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
+          <button id="saveStudent">Save</button>
+          <button id="deleteStudent" class="ghost" style="display:none">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Simple role-based demo auth ---
+    const roleLabel = document.getElementById('currentRole');
+    let currentUser = null; // {username,role}
+
+    const loginBtn = document.getElementById('loginBtn');
+    loginBtn.addEventListener('click', ()=>{
+      const role = document.getElementById('roleSelect').value;
+      const username = document.getElementById('usernameInput').value || role + '_demo';
+      currentUser = {username, role};
+      roleLabel.textContent = role.toUpperCase();
+      updateUIByRole();
+    });
+
+    // --- Storage helpers ---
+    const STORAGE_KEY = 'sms_students_v1';
+    function loadStudents(){
+      try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; }catch(e){return []}
+    }
+    function saveStudents(list){ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+
+    // --- App state ---
+    let students = loadStudents();
+    let editingId = null; // id when editing
+
+    // --- DOM refs ---
+    const tbody = document.querySelector('#studentsTable tbody');
+    const countEl = document.getElementById('count');
+    const addBtn = document.getElementById('addBtn');
+    const modal = document.getElementById('modalBackdrop');
+    const modalTitle = document.getElementById('modalTitle');
+    const sName = document.getElementById('sName');
+    const sPhone = document.getElementById('sPhone');
+    const sClass = document.getElementById('sClass');
+    const sAge = document.getElementById('sAge');
+    const saveStudent = document.getElementById('saveStudent');
+    const deleteStudent = document.getElementById('deleteStudent');
+    const closeModal = document.getElementById('closeModal');
+    const searchInput = document.getElementById('searchInput');
+    const classFilter = document.getElementById('classFilter');
+    const selectedCard = document.getElementById('selectedCard');
+    const exportPdf = document.getElementById('exportPdf');
+    const exportExcel = document.getElementById('exportExcel');
+    const loadSample = document.getElementById('loadSample');
+    const clearAll = document.getElementById('clearAll');
+
+    addBtn.addEventListener('click', ()=>openModalForAdd());
+    closeModal.addEventListener('click', ()=>closeModalFn());
+
+    function updateUIByRole(){
+      const role = currentUser ? currentUser.role : null;
+      document.getElementById('loginCard').style.display = currentUser ? 'none' : 'block';
+      document.getElementById('topControls').style.display = role === 'student' ? 'none' : 'flex';
+      // show add only for admin/teacher
+      addBtn.style.display = role === 'student' ? 'none' : 'inline-block';
+      renderTable();
+    }
+
+    // --- CRUD operations ---
+    function addStudent(obj){
+      obj.id = Date.now().toString();
+      students.push(obj); saveStudents(students); renderTable();
+    }
+    function updateStudent(id, data){
+      students = students.map(s => s.id===id ? {...s,...data} : s); saveStudents(students); renderTable();
+    }
+    function removeStudent(id){
+      students = students.filter(s => s.id!==id); saveStudents(students); renderTable();
+    }
+
+    // --- Modal flows ---
+    function openModalForAdd(){ editingId = null; modalTitle.textContent='Add student'; sName.value=''; sPhone.value=''; sAge.value=''; sClass.value='1'; deleteStudent.style.display='none'; modal.style.display='flex'; }
+    function openModalForEdit(id){ const s = students.find(x=>x.id===id); if(!s) return; editingId = id; modalTitle.textContent='Edit student'; sName.value=s.name; sPhone.value=s.phone; sClass.value=s.class; sAge.value=s.age; deleteStudent.style.display='inline-block'; modal.style.display='flex'; }
+    function closeModalFn(){ modal.style.display='none'; }
+
+    saveStudent.addEventListener('click', ()=>{
+      const payload = {name: sName.value.trim(), phone: sPhone.value.trim(), class: sClass.value, age: parseInt(sAge.value||0,10)};
+      if(!payload.name){ alert('Name required'); return; }
+      if(editingId){ updateStudent(editingId,payload); } else { addStudent(payload); }
+      closeModalFn();
+    });
+    deleteStudent.addEventListener('click', ()=>{
+      if(editingId && confirm('Delete this student?')){ removeStudent(editingId); closeModalFn(); }
+    });
+
+    // --- Render table with search & filter ---
+    function getFiltered(){
+      const q = searchInput.value.trim().toLowerCase();
+      const cls = classFilter.value;
+      return students.filter(s=>{
+        if(cls && String(s.class)!==String(cls)) return false;
+        if(q && !(`${s.name} ${s.phone}`).toLowerCase().includes(q)) return false;
+        return true;
+      });
+    }
+
+    function renderTable(){
+      const list = getFiltered();
+      tbody.innerHTML='';
+      list.forEach((s,idx)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${idx+1}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.class)}</td><td>${escapeHtml(String(s.age))}</td><td>${escapeHtml(s.phone||'—')}</td>`;
+        const actionTd = document.createElement('td'); actionTd.className='actions';
+        const viewBtn = document.createElement('button'); viewBtn.textContent='View'; viewBtn.className='ghost'; viewBtn.addEventListener('click', ()=>selectStudent(s.id));
+        actionTd.appendChild(viewBtn);
+        // only admin/teacher can edit/delete
+        if(currentUser && (currentUser.role==='admin' || currentUser.role==='teacher')){
+          const editBtn = document.createElement('button'); editBtn.textContent='Edit'; editBtn.addEventListener('click', ()=>openModalForEdit(s.id));
+          const delBtn = document.createElement('button'); delBtn.textContent='Delete'; delBtn.addEventListener('click', ()=>{ if(confirm('Delete?')) removeStudent(s.id); });
+          actionTd.appendChild(editBtn); actionTd.appendChild(delBtn);
+        }
+        const td = document.createElement('td'); td.appendChild(actionTd);
+        tr.appendChild(td.lastChild);
+        // append built row correctly
+        // workaround to insert actions column
+        tr.removeChild(tr.lastChild);
+        tr.appendChild(actionTd);
+        tbody.appendChild(tr);
+      });
+      countEl.textContent = list.length;
+      selectedCard.innerHTML = 'No student selected';
+    }
+
+    function escapeHtml(str){ return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[c]); }
+
+    function selectStudent(id){ const s = students.find(x=>x.id===id); if(!s) return; selectedCard.innerHTML = `<div><strong>${s.name}</strong><div class='muted'>Class ${s.class} · Age ${s.age}</div><div style='margin-top:6px'>Phone: ${s.phone||'—'}</div></div>`; }
+
+    // --- search/filter events ---
+    searchInput.addEventListener('input', renderTable);
+    classFilter.addEventListener('change', renderTable);
+
+    // --- Exporting ---
+    exportPdf.addEventListener('click', ()=>{
+      const list = getFiltered();
+      if(list.length===0){ alert('No records to export'); return; }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({orientation:'landscape'});
+      const cols = ['#','Name','Class','Age','Phone'];
+      const rows = list.map((s,i)=>[String(i+1), s.name, s.class, String(s.age), s.phone||'']);
+      doc.setFontSize(14); doc.text('Student Report', 14, 14);
+      // simple table rendering
+      doc.autoTable({ head:[cols], body:rows, startY:20, styles:{fontSize:10} });
+      doc.save('students_report.pdf');
+    });
+
+    // attach autoTable plugin dynamically if available
+    (function loadAutoTable(){
+      const url = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js';
+      const s = document.createElement('script'); s.src = url; s.onload = ()=>console.log('autoTable loaded'); document.head.appendChild(s);
+    })();
+
+    exportExcel.addEventListener('click', ()=>{
+      const list = getFiltered(); if(list.length===0){ alert('No records to export'); return; }
+      const wsData = [["#","Name","Class","Age","Phone"]];
+      list.forEach((s,i)=> wsData.push([i+1, s.name, s.class, s.age, s.phone||'']));
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Students');
+      XLSX.writeFile(wb, 'students_report.xlsx');
+    });
+
+    // --- demo sample data ---
+    loadSample.addEventListener('click', ()=>{
+      const sample = [
+        {id:'1',name:'Asha Kumar',class:'3',age:9,phone:'9876543210'},
+        {id:'2',name:'Rahul Singh',class:'5',age:11,phone:'9123456780'},
+        {id:'3',name:'Sana Iqbal',class:'2',age:7,phone:'9988776655'},
+        {id:'4',name:'Vikram Das',class:'4',age:10,phone:'9012345678'}
+      ];
+      students = sample; saveStudents(students); renderTable();
+    });
+    clearAll.addEventListener('click', ()=>{ if(confirm('Clear all student records?')){ students=[]; saveStudents(students); renderTable(); } });
+
+    // initialize
+    renderTable();
+    // default to admin so features are visible for demo
+    currentUser = {username:'admin_demo', role:'admin'}; roleLabel.textContent='ADMIN'; updateUIByRole();
+  </script>
+</body>
+</html>
